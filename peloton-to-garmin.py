@@ -116,7 +116,6 @@ for idx, w in enumerate(workouts):
     cur = con.cursor()
     cur.execute("SELECT COUNT(*) FROM workouts WHERE workoutID='"+str(workoutId)+"'")
     (workoutCount,) = cur.fetchone()
-    con.close()
 
     # Check to see if the count of the workout ID in the database is greater than 0
     if workoutCount > 0:
