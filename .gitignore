@@ -104,3 +104,6 @@ ENV/
 *.sqlite3
 
 *.lnk
+
+Output/
+*.tcx
