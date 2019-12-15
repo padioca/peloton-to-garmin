@@ -9,11 +9,13 @@ import json
 import logging
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import sqlite3
 
 from lib import pelotonApi
 from lib import config_helper as config
 from lib import tcx_builder
 from lib import garminClient
+from lib import db_utils
 
 ##############################
 # Debugging Setup
@@ -61,8 +63,8 @@ logger.debug("Peloton to Garmin Magic :)")
 if os.getenv("NUM_ACTIVITIES") is not None:
     numActivities = os.getenv("NUM_ACTIVITIES")
 else:
-    numActivities = None
-    #numActivities = 1
+    #numActivities = None
+    numActivities = 10
 
 if os.getenv("OUTPUT_DIRECTORY") is not None:
     output_directory = os.getenv("OUTPUT_DIRECTORY")
@@ -105,29 +107,53 @@ workouts = api.getXWorkouts(numActivities)
 garmin_email = config.ConfigSectionMap("GARMIN")['email']
 garmin_password = config.ConfigSectionMap("GARMIN")['password']
 
-for w in workouts:
+for idx, w in enumerate(workouts):
     workoutId = w["id"]
     logger.info("Get workout: " + str(workoutId))
 
-    workout = api.getWorkoutById(workoutId)
+    # Check to see if the workout ID has already been logged in the database
+    con = db_utils.db_connect()
+    cur = con.cursor()
+    cur.execute("SELECT COUNT(*) FROM workouts WHERE workoutID='"+str(workoutId)+"'")
+    (workoutCount,) = cur.fetchone()
+    con.close()
 
-    logger.info("Get workout samples")
-    workoutSamples = api.getWorkoutSamplesById(workoutId)
+    # Check to see if the count of the workout ID in the database is greater than 0
+    if workoutCount > 0:
+        if idx != len(workouts) - 1:
+            logger.info(str(workoutId + " has alreday been uploaded, moving on to the next file!"))
+        else:
+            logger.info(str(workoutId) + " has already been uploaded and is the last file, so this process will exit. Bye!")
+            sys.exit()
 
-    logger.info("Get workout summary")
-    workoutSummary = api.getWorkoutSummaryById(workoutId)
+    # If the workout ID does not exist in the database, create the file and upload to Garmin
+    else:
+        workout = api.getWorkoutById(workoutId)
 
-    logger.info("Writing TCX file")
-    try:
-        title, filename = tcx_builder.workoutSamplesToTCX(workout, workoutSummary, workoutSamples, output_directory)
-    except Exception as e:
-        logger.error("Failed to write TCX file for workout {} - Exception: {}".format(workoutId, e))
+        logger.info("Get workout samples")
+        workoutSamples = api.getWorkoutSamplesById(workoutId)
 
-    activityType = "cycling"
+        logger.info("Get workout summary")
+        workoutSummary = api.getWorkoutSummaryById(workoutId)
 
-    fileToUpload = [output_directory + "/" + filename]
+        logger.info("Writing TCX file")
+        try:
+            title, filename = tcx_builder.workoutSamplesToTCX(workout, workoutSummary, workoutSamples, output_directory)
+        except Exception as e:
+            logger.error("Failed to write TCX file for workout {} - Exception: {}".format(workoutId, e))
 
-    garminClient.uploadToGarmin(fileToUpload, garmin_email, garmin_password, str(activityType), title)
+        activityType = "cycling"
+
+        fileToUpload = [output_directory + "/" + filename]
+
+        garminClient.uploadToGarmin(fileToUpload, garmin_email, garmin_password, str(activityType), title)
+
+        # Add information to SQLite
+        cur = con.cursor()
+        workout_sql = "INSERT INTO workouts (workoutID, title, filename) VALUES (?, ?, ?)"
+        cur.execute(workout_sql, (workoutId, title, filename))
+        con.commit()
+        con.close()
     
 
 logger.info("Done!")

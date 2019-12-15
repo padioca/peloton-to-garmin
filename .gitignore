@@ -100,5 +100,7 @@ ENV/
 # mypy
 .mypy_cache/
 
+# sqlite database
+*.sqlite3
 
 *.lnk
