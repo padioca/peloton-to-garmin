@@ -105,6 +105,8 @@ def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
         logger.error("Failed to Parse Speed/Cal/HR - Exception: {}".format(e))
         return
 
+    completion_time = startTimeInSeconds + workout["peloton"]["ride"]["duration"]
+
     track = etree.Element("Track")
 
     metrics = workoutSamples["metrics"]
@@ -206,4 +208,4 @@ def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
     filename = "{0}-{1}{2}-{3}-{4}.tcx".format(startTimeInSeconds, workout["ride"]["title"], instructor, workout['id'], datetime.now(tz=None))
     outputDir = outputDir.replace("\"", "")
     tree.write("{0}/{1}".format(outputDir,filename), xml_declaration=True, encoding="UTF-8", method="xml")
-    return title, filename
+    return title, filename, completion_time

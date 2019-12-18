@@ -10,6 +10,7 @@ import logging
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import sqlite3
+import datetime
 
 from lib import pelotonApi
 from lib import config_helper as config
@@ -135,24 +136,28 @@ for idx, w in enumerate(workouts):
         logger.info("Get workout summary")
         workoutSummary = api.getWorkoutSummaryById(workoutId)
 
+        current_time = datetime.datetime.now().timestamp()
+
         logger.info("Writing TCX file")
         try:
-            title, filename = tcx_builder.workoutSamplesToTCX(workout, workoutSummary, workoutSamples, output_directory)
+            title, filename, completion_time = tcx_builder.workoutSamplesToTCX(workout, workoutSummary, workoutSamples, output_directory)
         except Exception as e:
             logger.error("Failed to write TCX file for workout {} - Exception: {}".format(workoutId, e))
 
-        activityType = "cycling"
+        if completion_time < current_time:
+            activityType = "cycling"
 
-        fileToUpload = [output_directory + "/" + filename]
+            fileToUpload = [output_directory + "/" + filename]
 
-        garminClient.uploadToGarmin(fileToUpload, garmin_email, garmin_password, str(activityType), title)
+            garminClient.uploadToGarmin(fileToUpload, garmin_email, garmin_password, str(activityType), title)
 
-        # Add information to SQLite
-        cur = con.cursor()
-        workout_sql = "INSERT INTO workouts (workoutID, title, filename) VALUES (?, ?, ?)"
-        cur.execute(workout_sql, (workoutId, title, filename))
-        con.commit()
-        con.close()
+            # Add information to SQLite
+            workout_sql = "INSERT INTO workouts (workoutID, title, filename, timestamp) VALUES (?, ?, ?, ?)"
+            cur.execute(workout_sql, (workoutId, title, filename, datetime.datetime.now()))
+            con.commit()
+            con.close()
+        else:
+            logger.info("It seems like this workout is not yet completed, moving on!")
     
 
 logger.info("Done!")

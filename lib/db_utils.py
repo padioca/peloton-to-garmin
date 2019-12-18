@@ -9,5 +9,5 @@ DEFAULT_PATH = os.path.join(os.path.dirname(__file__), 'database.sqlite3')
 def db_connect(db_path=DEFAULT_PATH):
     con = sqlite3.connect(db_path)
     cursorObj = con.cursor()
-    cursorObj.execute('CREATE TABLE IF NOT EXISTS workouts (workoutID text, title text, filename text)')
+    cursorObj.execute('CREATE TABLE IF NOT EXISTS workouts (workoutID text, title text, filename text, [timestamp] timestamp)')
     return con
